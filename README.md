@@ -1,71 +1,139 @@
-<a href="https://chatbot.ai-sdk.dev/demo">
-  <img alt="Chatbot" src="app/(chat)/opengraph-image.png">
-  <h1 align="center">Chatbot</h1>
-</a>
+# Vercel Hermes Chatbot
 
-<p align="center">
-    Chatbot (formerly AI Chatbot) is a free, open-source template built with Next.js and the AI SDK that helps you quickly build powerful chatbot applications.
-</p>
+This repository is a customized chatbot build for running a local or self-hosted Hermes service behind a Next.js chat UI.
 
-<p align="center">
-  <a href="https://chatbot.ai-sdk.dev/docs"><strong>Read Docs</strong></a> ·
-  <a href="#features"><strong>Features</strong></a> ·
-  <a href="#model-providers"><strong>Model Providers</strong></a> ·
-  <a href="#deploy-your-own"><strong>Deploy Your Own</strong></a> ·
-  <a href="#running-locally"><strong>Running locally</strong></a>
-</p>
-<br/>
+The README focuses only on the changes in this customized version. Detailed maintenance notes are kept in [`vercel_custom_record.txt`](./vercel_custom_record.txt).
 
-## Features
+## Main Customizations
 
-- [Next.js](https://nextjs.org) App Router
-  - Advanced routing for seamless navigation and performance
-  - React Server Components (RSCs) and Server Actions for server-side rendering and increased performance
-- [AI SDK](https://ai-sdk.dev/docs/introduction)
-  - Unified API for generating text, structured objects, and tool calls with LLMs
-  - Hooks for building dynamic chat and generative user interfaces
-  - Supports OpenAI, Anthropic, Google, xAI, and other model providers via AI Gateway
-- [shadcn/ui](https://ui.shadcn.com)
-  - Styling with [Tailwind CSS](https://tailwindcss.com)
-  - Component primitives from [Radix UI](https://radix-ui.com) for accessibility and flexibility
-- Data Persistence
-  - [Neon Serverless Postgres](https://vercel.com/marketplace/neon) for saving chat history and user data
-  - [Vercel Blob](https://vercel.com/storage/blob) for efficient file storage
-- [Auth.js](https://authjs.dev)
-  - Simple and secure authentication
+- Replaced Vercel AI Gateway model routing with a self-hosted Hermes OpenAI-compatible provider.
+- Added environment-based Hermes model capability flags.
+- Requires a real logged-in user before chat access.
+- Blocks guest users from asking questions.
+- Adds database-backed invite codes for registration.
+- Adds a helper script for generating invite codes.
+- Removes visible "Deploy with Vercel" UI entry points from the chat header.
+- Adds custom DigCat/Hermes branding, logo usage, greeting text, and example prompts.
+- Adds a local Postgres quick-start script for migration and development.
+- Records all customization details in `vercel_custom_record.txt`.
 
-## Model Providers
+## Required Environment
 
-This template uses the [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) to access multiple AI models through a unified interface. Models are configured in `lib/ai/models.ts` with per-model provider routing. Included models: Mistral, Moonshot, DeepSeek, OpenAI, and xAI.
+Create `.env.local` in the repository root:
 
-### AI Gateway Authentication
+```bash
+POSTGRES_URL=postgres://postgres:postgres@localhost:5432/chatbot
+HERMES_BASE_URL=http://127.0.0.1:8642/v1
+HERMES_MODEL=DigCat_ORR_Agent1.0
+HERMES_API_KEY=your_key_if_required
+```
 
-**For Vercel deployments**: Authentication is handled automatically via OIDC tokens.
+Optional Hermes capability flags:
 
-**For non-Vercel deployments**: You need to provide an AI Gateway API key by setting the `AI_GATEWAY_API_KEY` environment variable in your `.env.local` file.
+```bash
+HERMES_SUPPORTS_TOOLS=true
+HERMES_SUPPORTS_VISION=false
+HERMES_SUPPORTS_REASONING=false
+```
 
-With the [AI SDK](https://ai-sdk.dev/docs/introduction), you can also switch to direct LLM providers like [OpenAI](https://openai.com), [Anthropic](https://anthropic.com), [Cohere](https://cohere.com/), and [many more](https://ai-sdk.dev/providers/ai-sdk-providers) with just a few lines of code.
+Notes:
 
-## Deploy Your Own
+- Use `http://` unless Hermes is actually serving TLS.
+- Do not use `0.0.0.0` as the client URL. Use `127.0.0.1`, `localhost`, a real server IP, a domain, or a container service name.
+- `.env.local` is intentionally ignored and should not be committed.
 
-You can deploy your own version of Chatbot to Vercel with one click:
+## Local Postgres
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/templates/next.js/chatbot)
+Start a local Postgres container:
 
-## Running locally
+```bash
+./start_postgres_chatbot.sh
+```
 
-You will need to use the environment variables [defined in `.env.example`](.env.example) to run Chatbot. It's recommended you use [Vercel Environment Variables](https://vercel.com/docs/projects/environment-variables) for this, but a `.env` file is all that is necessary.
+Default database URL:
 
-> Note: You should not commit your `.env` file or it will expose secrets that will allow others to control access to your various AI and authentication provider accounts.
+```bash
+postgres://postgres:postgres@localhost:5432/chatbot
+```
 
-1. Install Vercel CLI: `npm i -g vercel`
-2. Link local instance with Vercel and GitHub accounts (creates `.vercel` directory): `vercel link`
-3. Download your environment variables: `vercel env pull`
+The script:
+
+- starts `postgres:16-alpine`;
+- stores local database files in `.postgres-chatbot`;
+- creates the `chatbot` database when missing;
+- waits for Postgres readiness;
+- runs `pnpm db:migrate` when dependencies are installed.
+
+Useful options:
+
+```bash
+RESET_DB=1 ./start_postgres_chatbot.sh
+RUN_MIGRATIONS=0 ./start_postgres_chatbot.sh
+HOST_PORT=5433 ./start_postgres_chatbot.sh
+```
+
+## Setup
 
 ```bash
 pnpm install
-pnpm db:migrate # Setup database or apply latest database changes
+./start_postgres_chatbot.sh
 pnpm dev
 ```
 
-Your app template should now be running on [localhost:3000](http://localhost:3000).
+The app runs at:
+
+```text
+http://localhost:3000
+```
+
+Make sure Hermes is running separately and reachable at `HERMES_BASE_URL`.
+
+## Invite Codes
+
+Registration requires a valid invite code bound to the user's email.
+
+Generate a random invite code:
+
+```bash
+pnpm invite:add user@example.com
+```
+
+Generate a specific invite code:
+
+```bash
+pnpm invite:add user@example.com my-custom-code
+```
+
+Run migrations before creating invite codes:
+
+```bash
+pnpm db:migrate
+```
+
+## Verification
+
+Type-check the customized app:
+
+```bash
+pnpm exec tsc --noEmit
+```
+
+## Migration Notes
+
+For a new machine:
+
+```bash
+git clone git@github.com:tohokudizhang/vercel-hermes-chatbot.git
+cd vercel-hermes-chatbot
+pnpm install
+./start_postgres_chatbot.sh
+pnpm dev
+```
+
+Create `.env.local` manually with the values listed above.
+
+More detailed change history:
+
+```text
+vercel_custom_record.txt
+```
