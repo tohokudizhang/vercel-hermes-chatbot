@@ -23,6 +23,7 @@ Create `.env.local` in the repository root:
 
 ```bash
 POSTGRES_URL=postgres://postgres:postgres@localhost:5432/chatbot
+AUTH_SECRET=replace_with_a_random_secret
 HERMES_BASE_URL=http://127.0.0.1:8642/v1
 HERMES_MODEL=DigCat_ORR_Agent1.0
 HERMES_API_KEY=your_key_if_required
@@ -38,6 +39,7 @@ HERMES_SUPPORTS_REASONING=false
 
 Notes:
 
+- `AUTH_SECRET` is required by Auth.js. Generate a new value with `openssl rand -base64 32` for each deployment.
 - Use `http://` unless Hermes is actually serving TLS.
 - Do not use `0.0.0.0` as the client URL. Use `127.0.0.1`, `localhost`, a real server IP, a domain, or a container service name.
 - `.env.local` is intentionally ignored and should not be committed.
