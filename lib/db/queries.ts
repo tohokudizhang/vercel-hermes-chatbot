@@ -23,6 +23,7 @@ import {
   chat,
   type DBMessage,
   document,
+  inviteCode,
   message,
   type Suggestion,
   stream,
@@ -54,6 +55,70 @@ export async function createUser(email: string, password: string) {
     return await db.insert(user).values({ email, password: hashedPassword });
   } catch (_error) {
     throw new ChatbotError("bad_request:database", "Failed to create user");
+  }
+}
+
+export async function createInviteCode({
+  email,
+  code,
+}: {
+  email: string;
+  code: string;
+}) {
+  try {
+    return await db
+      .insert(inviteCode)
+      .values({
+        email: email.trim().toLowerCase(),
+        code,
+      })
+      .returning();
+  } catch (_error) {
+    throw new ChatbotError(
+      "bad_request:database",
+      "Failed to create invite code"
+    );
+  }
+}
+
+export async function getValidInviteCode({
+  email,
+  code,
+}: {
+  email: string;
+  code: string;
+}) {
+  try {
+    return await db
+      .select()
+      .from(inviteCode)
+      .where(
+        and(
+          eq(inviteCode.email, email.trim().toLowerCase()),
+          eq(inviteCode.code, code),
+          eq(inviteCode.used, false)
+        )
+      );
+  } catch (_error) {
+    throw new ChatbotError(
+      "bad_request:database",
+      "Failed to get invite code"
+    );
+  }
+}
+
+export async function markInviteCodeUsed({ id }: { id: string }) {
+  try {
+    return await db
+      .update(inviteCode)
+      .set({ used: true, usedAt: new Date(), updatedAt: new Date() })
+      .where(eq(inviteCode.id, id))
+      .returning();
+  } catch (_error) {
+    throw new ChatbotError(
+      "bad_request:database",
+      "Failed to mark invite code as used"
+    );
   }
 }
 

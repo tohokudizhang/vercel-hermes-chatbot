@@ -9,7 +9,11 @@ export async function proxy(request: NextRequest) {
     return new Response("pong", { status: 200 });
   }
 
-  if (pathname.startsWith("/api/auth")) {
+  if (pathname.startsWith("/api")) {
+    return NextResponse.next();
+  }
+
+  if (/\.[^/]+$/.test(pathname)) {
     return NextResponse.next();
   }
 
@@ -20,18 +24,23 @@ export async function proxy(request: NextRequest) {
   });
 
   const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+  const isAuthPage = ["/login", "/register"].includes(pathname);
 
   if (!token) {
-    const redirectUrl = encodeURIComponent(new URL(request.url).pathname);
+    if (isAuthPage) {
+      return NextResponse.next();
+    }
 
-    return NextResponse.redirect(
-      new URL(`${base}/api/auth/guest?redirectUrl=${redirectUrl}`, request.url)
-    );
+    return NextResponse.redirect(new URL(`${base}/login`, request.url));
   }
 
   const isGuest = guestRegex.test(token?.email ?? "");
 
-  if (token && !isGuest && ["/login", "/register"].includes(pathname)) {
+  if (isGuest && !isAuthPage) {
+    return NextResponse.redirect(new URL(`${base}/login`, request.url));
+  }
+
+  if (!isGuest && isAuthPage) {
     return NextResponse.redirect(new URL(`${base}/`, request.url));
   }
 

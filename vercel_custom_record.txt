@@ -1,0 +1,435 @@
+Vercel Hermes Chatbot Change Notes
+==================================
+
+Purpose
+-------
+This file records the local changes made on top of the original Vercel Chatbot template, so future maintenance can quickly identify what was changed, where it lives, and how to configure the app.
+
+Project path:
+/home2/dizhang2/langgraph/ORRagent/vercel-hermes-chatbot
+
+1. AI Provider: Vercel AI Gateway -> Hermes
+-------------------------------------------
+Original behavior:
+- The template used Vercel AI Gateway through `gateway.languageModel(...)` from the `ai` package.
+- Model metadata and capabilities were fetched from `https://ai-gateway.vercel.sh`.
+
+Current behavior:
+- The app now uses a self-hosted Hermes service through the OpenAI-compatible provider.
+- The relevant package is:
+  - `@ai-sdk/openai-compatible@^2.0.56`
+- Version note:
+  - This project uses `ai@6.0.116`, which depends on `@ai-sdk/provider@3`.
+  - `@ai-sdk/openai-compatible@3.x` depends on provider v4 and caused TypeScript model-type mismatches.
+  - Therefore this project intentionally uses `@ai-sdk/openai-compatible@2.0.56`.
+
+Changed files:
+- `lib/ai/providers.ts`
+  - Removed Vercel `gateway` usage.
+  - Added `createOpenAICompatible` from `@ai-sdk/openai-compatible`.
+  - Added lazy Hermes provider initialization.
+  - Requires `HERMES_BASE_URL` when the provider is first used.
+  - Maps the UI model id `hermes` to the real model name from `HERMES_MODEL`.
+
+- `lib/ai/models.ts`
+  - Replaced the original Gateway model list with one local model entry:
+    - id: `hermes`
+    - name: `Hermes`
+    - provider: `hermes`
+  - Removed Vercel Gateway endpoint fetches.
+  - `getCapabilities()` now returns local capability flags from env vars.
+  - `getAllGatewayModels()` now returns the local Hermes model list, so the UI does not fetch Vercel Gateway models.
+
+- `app/(chat)/api/chat/route.ts`
+  - Removed Gateway-specific `providerOptions.gateway`.
+  - Removed `chatModels` lookup that was only needed for Gateway routing options.
+
+- `app/(chat)/actions.ts`
+  - Removed Gateway-specific title generation provider options.
+
+2. Required Environment Variables
+---------------------------------
+Set these in `.env.local`:
+
+HERMES_BASE_URL=http://127.0.0.1:8642/v1
+HERMES_API_KEY=your_key_if_required
+HERMES_MODEL=DigCat_ORR_Agent1.0
+
+Important notes:
+- Use `http://` if Hermes is serving plain HTTP.
+- Do not use `https://` unless Hermes is actually serving TLS.
+- Do not use `0.0.0.0` as the client URL.
+  - `0.0.0.0` is for server bind/listen addresses.
+  - Clients should connect to `127.0.0.1`, `localhost`, a real server IP, a domain, or a container service name.
+
+Example for local Hermes:
+HERMES_BASE_URL=http://127.0.0.1:8642/v1
+
+Example for Docker/container networking:
+HERMES_BASE_URL=http://hermes:8642/v1
+
+Optional capability flags:
+HERMES_SUPPORTS_TOOLS=true
+HERMES_SUPPORTS_VISION=false
+HERMES_SUPPORTS_REASONING=false
+
+Default behavior if omitted:
+- tools: true
+- vision: false
+- reasoning: false
+
+3. Common Hermes Connection Error
+---------------------------------
+Error example:
+ERR_SSL_WRONG_VERSION_NUMBER
+url: `https://0.0.0.0:8642/v1/chat/completions`
+
+Cause:
+- The app tried to connect with HTTPS/TLS to a service that is probably plain HTTP.
+- The app also used `0.0.0.0`, which is not a proper client target address.
+
+Fix:
+Use a reachable HTTP URL, for example:
+HERMES_BASE_URL=http://127.0.0.1:8642/v1
+
+4. Authentication Change: Require Real Login
+--------------------------------------------
+Goal:
+- If the user is not logged in, they cannot ask questions.
+- Guest users are also blocked from asking questions.
+
+Changed files:
+- `app/(chat)/layout.tsx`
+  - Checks `session?.user?.type`.
+  - If the user is not `regular`, redirects to `/login`.
+
+- `app/(chat)/api/chat/route.ts`
+  - Backend protection also checks `session?.user?.type !== "regular"`.
+  - Unauthorized or guest API calls return `unauthorized:chat`.
+
+Notes:
+- The original template includes guest auth support.
+- Guest support was not fully deleted from the auth system, but chat page/API access now requires a regular account.
+- This means direct API calls cannot bypass the UI login requirement.
+
+
+4.1 Registration Invite Codes
+-----------------------------
+Goal:
+- Prevent open/free registration.
+- Only users with a valid invite/activation code can create an account.
+
+Database-backed invite codes:
+- Invite codes are stored in the `InviteCode` table.
+- Each invite code is bound to one email address.
+- The register page shows an `Invite code` field.
+- The server action checks that submitted email + invite code match an unused row.
+- Registration succeeds only once per invite code.
+- Existing users can still sign in normally.
+
+Changed files:
+- `app/(auth)/actions.ts`
+  - Added `registerFormSchema` with `inviteCode`.
+  - Added server-side validation against the `InviteCode` table.
+  - Validates submitted email + invite code and requires the row to be unused.
+  - Marks the invite code as used after successful account creation.
+  - Added `invalid_invite_code` register status.
+
+- `components/chat/auth-form.tsx`
+  - Added optional `showInviteCode` prop.
+  - Login keeps the normal email/password form.
+  - Register enables the invite code field.
+
+- `app/(auth)/register/page.tsx`
+  - Enables `showInviteCode`.
+  - Shows `Invalid invite code!` toast when validation fails.
+
+Security note:
+- Do not put invite codes in client-side code.
+- Invite codes are stored server-side in the database.
+- Each invite code is bound to one email address and can be used once.
+
+
+4.2 Auto-generate Invite Codes
+------------------------------
+A helper script was added to generate invite codes and insert them into the database.
+
+Changed files:
+- `scripts/add-invite-code.mjs`
+- `package.json`
+- `lib/db/schema.ts`
+- `lib/db/queries.ts`
+- `lib/db/migrations/0001_invite_code.sql`
+
+Default command:
+pnpm invite:add user@example.com
+
+What it does:
+- Generates a random code like `invite-xxxxxxxxxxxx`.
+- Inserts a row into the `InviteCode` table.
+- Binds the invite code to the provided email address.
+- Prints the new invite code in the terminal.
+
+Add a specific invite code:
+pnpm invite:add user@example.com my-custom-code
+
+Before using this command, run migrations so the `InviteCode` table exists:
+pnpm db:migrate
+
+Allowed characters for custom codes:
+- Letters
+- Numbers
+- `.`, `_`, `~`, `:`, `-`
+
+This script requires `POSTGRES_URL` in `.env.local` because it writes directly to the database.
+
+5. UI Change: Removed Deploy with Vercel Button
+-----------------------------------------------
+Changed file:
+- `components/chat/chat-header.tsx`
+
+Removed:
+- Desktop `Deploy with Vercel` button in the top right.
+- Mobile Vercel template icon link.
+- Imports for `Link` and `VercelIcon` from this header.
+
+Note:
+- Other Vercel references may still exist in metadata, auth layout branding, README text, or package dependencies.
+- This change specifically removed the visible chat header deploy button shown in the main UI.
+
+6. Logo Customization
+---------------------
+A reusable assistant logo component was added so the home page and assistant messages can be customized from one place.
+
+Primary file to edit:
+- `components/chat/icons.tsx`
+
+Component:
+- `AssistantLogo`
+
+Currently it renders a simple Hermes-style `H` SVG.
+To customize the bot logo, edit `AssistantLogo` only.
+
+Used by:
+- `components/chat/greeting.tsx`
+  - Shows the assistant logo on the main empty/home greeting.
+
+- `components/chat/message.tsx`
+  - Shows the assistant logo beside assistant responses.
+  - Also used by the assistant loading/thinking state.
+
+- `components/chat/preview.tsx`
+  - Shows the assistant logo in the preview header.
+
+Example: replace `AssistantLogo` with an image
+----------------------------------------------
+If you add an image file such as:
+`public/hermes-logo.png`
+
+You can replace `AssistantLogo` in `components/chat/icons.tsx` with something like:
+
+export const AssistantLogo = ({ size = 16 }: { size?: number }) => {
+  return (
+    <img
+      alt="Hermes"
+      height={size}
+      src="/hermes-logo.png"
+      width={size}
+    />
+  );
+};
+
+7. Home Page Text and Example Questions
+---------------------------------------
+Home greeting text:
+- `components/chat/greeting.tsx`
+  - Main title: `What can I help with?`
+  - Subtitle: `Ask a question, write code, or explore ideas.`
+
+Preview panel text:
+- `components/chat/preview.tsx`
+
+Example suggested questions:
+- `lib/constants.ts`
+  - Look for the `suggestions` array.
+
+8. Verification Command
+-----------------------
+After these changes, TypeScript was checked with:
+
+pnpm exec tsc --noEmit
+
+Result:
+- Passed at the time this file was written.
+
+9. Quick Checklist for Future Setup
+-----------------------------------
+1. Install dependencies:
+   pnpm install
+
+2. Configure `.env.local`:
+   HERMES_BASE_URL=http://127.0.0.1:8642/v1
+   HERMES_MODEL=DigCat_ORR_Agent1.0
+   HERMES_API_KEY=your_key_if_required
+
+3. Make sure Hermes is reachable:
+   curl http://127.0.0.1:8642/v1/models
+
+4. Run type check:
+   pnpm exec tsc --noEmit
+
+5. Start app:
+   pnpm dev
+
+10. Files Most Relevant to This Customization
+---------------------------------------------
+AI/Hermes:
+- `lib/ai/providers.ts`
+- `lib/ai/models.ts`
+- `app/(chat)/api/chat/route.ts`
+- `app/(chat)/actions.ts`
+
+Auth:
+- `app/(chat)/layout.tsx`
+- `app/(chat)/api/chat/route.ts`
+- `app/(auth)/auth.ts`
+- `app/(auth)/login/page.tsx`
+
+UI/header/logo:
+- `components/chat/chat-header.tsx`
+- `components/chat/icons.tsx`
+- `components/chat/greeting.tsx`
+- `components/chat/message.tsx`
+- `components/chat/preview.tsx`
+- `lib/constants.ts`
+
+11. Recent Updates: Auth Proxy and Login Preview
+------------------------------------------------
+Date: 2026-07-05
+
+A. Fixed AuthJS JSON parse error on startup
+
+Observed error:
+- Browser showed `ClientFetchError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON`.
+
+Cause:
+- `proxy.ts` still had the original template behavior that redirected unauthenticated requests to the guest auth flow.
+- Some `/api/...` requests expected JSON, but received an HTML login/redirect page instead.
+
+Changed file:
+- `proxy.ts`
+
+Current proxy behavior:
+- `/api/...` requests are allowed through without HTML redirects.
+- Unauthenticated page requests redirect to `/login`.
+- Guest users are redirected to `/login` when accessing non-auth pages.
+- Regular logged-in users visiting `/login` or `/register` are redirected to `/`.
+
+Verification:
+- `pnpm exec tsc --noEmit` passed after the change.
+
+B. Login/register page UI cleanup
+
+Changed file:
+- `app/(auth)/layout.tsx`
+
+Changes:
+- Removed the top-left `Back` link because it appeared unresponsive under the new login-required routing behavior.
+- Replaced the old `Powered by AI Gateway` branding with `Powered by Hermes`.
+- Reused `AssistantLogo` for the auth layout branding.
+- The right-side preview now renders as `<Preview requiresAuth />`.
+
+C. Right-side preview now prompts login instead of navigating
+
+Changed file:
+- `components/chat/preview.tsx`
+
+Changes:
+- Added optional prop: `requiresAuth?: boolean`.
+- When `requiresAuth` is true, clicking example prompts or the bottom input does not navigate.
+- Instead it shows a toast:
+  `Please sign in before starting a chat.`
+- Bottom placeholder changes from:
+  `Ask anything...`
+  to:
+  `Sign in to ask anything...`
+
+Where to customize preview text:
+- Preview title/subtitle:
+  `components/chat/preview.tsx`
+- Bottom placeholder text:
+  `components/chat/preview.tsx`
+- Four initial example questions:
+  `lib/constants.ts`, `suggestions` array
+
+D. Current invite-code behavior reminder
+
+Invite codes are no longer stored in `.env.local`.
+They are database-backed through the `InviteCode` table.
+
+Generate a code for a specific email:
+pnpm invite:add user@example.com
+
+Generate a specific code for a specific email:
+pnpm invite:add user@example.com my-custom-code
+
+Required env for the script:
+- `POSTGRES_URL` in `.env.local`
+
+Required migration:
+pnpm db:migrate
+
+
+12. GitHub Migration Backup Notes
+---------------------------------
+Date: 2026-07-08
+
+Purpose:
+- Keep this customized Hermes chatbot in a personal GitHub repository for fast migration to another machine.
+- The upstream template remote originally points to `https://github.com/vercel/chatbot.git`; use a personal GitHub repository as the backup/push target for this customized version.
+
+Recommended migration flow on a new machine:
+1. Clone the customized repository.
+2. Install dependencies:
+   pnpm install
+3. Create `.env.local` from the required environment variables below.
+4. Start local Postgres:
+   ./start_postgres_chatbot.sh
+5. Run or re-run database migrations if needed:
+   POSTGRES_URL='postgres://postgres:postgres@localhost:5432/chatbot' pnpm db:migrate
+6. Start Hermes separately, then start the chatbot:
+   pnpm dev
+
+Local Postgres helper:
+- File: `start_postgres_chatbot.sh`
+- Default URL: `postgres://postgres:postgres@localhost:5432/chatbot`
+- Default container: `chatbot_postgres`
+- Default image: `postgres:16-alpine`
+- Default data directory: `.postgres-chatbot`
+- The script is self-locating, so it can be run from a cloned copy of this repository.
+- It waits for Postgres readiness, ensures the `chatbot` database exists, and runs `pnpm db:migrate` when `pnpm` and `node_modules` are available.
+
+Useful script flags:
+- Reset local database data:
+  RESET_DB=1 ./start_postgres_chatbot.sh
+- Skip migrations during startup:
+  RUN_MIGRATIONS=0 ./start_postgres_chatbot.sh
+- Use a different host port:
+  HOST_PORT=5433 ./start_postgres_chatbot.sh
+
+Required `.env.local` values for the customized app:
+POSTGRES_URL=postgres://postgres:postgres@localhost:5432/chatbot
+HERMES_BASE_URL=http://127.0.0.1:8642/v1
+HERMES_MODEL=DigCat_ORR_Agent1.0
+HERMES_API_KEY=your_key_if_required
+
+Optional Hermes capability flags:
+HERMES_SUPPORTS_TOOLS=true
+HERMES_SUPPORTS_VISION=false
+HERMES_SUPPORTS_REASONING=false
+
+Security and repository notes:
+- `.env.local` is intentionally ignored and must not be committed.
+- `.postgres-chatbot` is ignored because it contains local database files.
+- `public/digcat.jpg` is part of the customized branding and should be committed.
+- `vercel_custom_record.txt` is the human-readable migration/change log for this customized fork.

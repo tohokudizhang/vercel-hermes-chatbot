@@ -43,6 +43,7 @@ import {
   type ModelCapabilities,
 } from "@/lib/ai/models";
 import type { Attachment, ChatMessage } from "@/lib/types";
+import { pageConfig } from "@/lib/page-config";
 import { cn } from "@/lib/utils";
 import {
   PromptInput,
@@ -163,7 +164,7 @@ function PureMultimodalInput({
         setMessages(() => []);
         break;
       case "rename":
-        toast("Rename is available from the sidebar chat menu.");
+        toast(pageConfig.chat.renameUnavailableMessage);
         break;
       case "model": {
         const modelBtn = document.querySelector<HTMLButtonElement>(
@@ -176,30 +177,30 @@ function PureMultimodalInput({
         setTheme(resolvedTheme === "dark" ? "light" : "dark");
         break;
       case "delete":
-        toast("Delete this chat?", {
+        toast(pageConfig.chat.deleteChatPrompt, {
           action: {
-            label: "Delete",
+            label: pageConfig.chat.deleteChatActionLabel,
             onClick: () => {
               fetch(
                 `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/chat?id=${chatId}`,
                 { method: "DELETE" }
               );
               router.push("/");
-              toast.success("Chat deleted");
+              toast.success(pageConfig.chat.deleteChatSuccess);
             },
           },
         });
         break;
       case "purge":
-        toast("Delete all chats?", {
+        toast(pageConfig.chat.deleteAllChatsPrompt, {
           action: {
-            label: "Delete all",
+            label: pageConfig.chat.deleteAllChatsActionLabel,
             onClick: () => {
               fetch(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/history`, {
                 method: "DELETE",
               });
               router.push("/");
-              toast.success("All chats deleted");
+              toast.success(pageConfig.chat.deleteAllChatsSuccess);
             },
           },
         });
@@ -282,7 +283,7 @@ function PureMultimodalInput({
       const { error } = await response.json();
       toast.error(error);
     } catch (_error) {
-      toast.error("Failed to upload file, please try again!");
+      toast.error(pageConfig.chat.uploadFileError);
     }
   }, []);
 
@@ -304,7 +305,7 @@ function PureMultimodalInput({
           ...successfullyUploadedAttachments,
         ]);
       } catch (_error) {
-        toast.error("Failed to upload files");
+        toast.error(pageConfig.chat.uploadFilesError);
       } finally {
         setUploadQueue([]);
       }
@@ -350,7 +351,7 @@ function PureMultimodalInput({
           ...(successfullyUploadedAttachments as Attachment[]),
         ]);
       } catch (_error) {
-        toast.error("Failed to upload pasted image(s)");
+        toast.error(pageConfig.chat.uploadPastedImagesError);
       } finally {
         setUploadQueue([]);
       }
@@ -372,7 +373,7 @@ function PureMultimodalInput({
     <div className={cn("relative flex w-full flex-col gap-4", className)}>
       {editingMessage && onCancelEdit && (
         <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-          <span>Editing message</span>
+          <span>{pageConfig.chat.editingMessageLabel}</span>
           <button
             className="rounded px-1.5 py-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
             onMouseDown={(e) => {
@@ -381,7 +382,7 @@ function PureMultimodalInput({
             }}
             type="button"
           >
-            Cancel
+            {pageConfig.chat.cancelLabel}
           </button>
         </div>
       )}
@@ -510,7 +511,7 @@ function PureMultimodalInput({
             }
           }}
           placeholder={
-            editingMessage ? "Edit your message..." : "Ask anything..."
+            editingMessage ? pageConfig.chat.editPlaceholder : pageConfig.chat.askPlaceholder
           }
           ref={textareaRef}
           value={input}
@@ -664,7 +665,7 @@ function PureModelSelectorCompact({
         </Button>
       </ModelSelectorTrigger>
       <ModelSelectorContent>
-        <ModelSelectorInput placeholder="Search models..." />
+        <ModelSelectorInput placeholder={pageConfig.chat.modelSearchPlaceholder} />
         <ModelSelectorList>
           {(() => {
             const curatedIds = new Set(chatModels.map((m) => m.id));

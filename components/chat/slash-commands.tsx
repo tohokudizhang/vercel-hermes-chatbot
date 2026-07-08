@@ -10,6 +10,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
+import { pageConfig } from "@/lib/page-config";
 import { cn } from "@/lib/utils";
 
 export type SlashCommand = {
@@ -23,43 +24,43 @@ export type SlashCommand = {
 export const slashCommands: SlashCommand[] = [
   {
     name: "new",
-    description: "Start a new chat",
+    description: pageConfig.chat.slashCommands.newDescription,
     icon: <PenSquareIcon className="size-3.5" />,
     action: "new",
   },
   {
     name: "clear",
-    description: "Clear current chat",
+    description: pageConfig.chat.slashCommands.clearDescription,
     icon: <Trash2Icon className="size-3.5" />,
     action: "clear",
   },
   {
     name: "rename",
-    description: "Rename current chat",
+    description: pageConfig.chat.slashCommands.renameDescription,
     icon: <PenLineIcon className="size-3.5" />,
     action: "rename",
   },
   {
     name: "model",
-    description: "Change the AI model",
+    description: pageConfig.chat.slashCommands.modelDescription,
     icon: <ListIcon className="size-3.5" />,
     action: "model",
   },
   {
     name: "theme",
-    description: "Toggle dark/light mode",
+    description: pageConfig.chat.slashCommands.themeDescription,
     icon: <PaletteIcon className="size-3.5" />,
     action: "theme",
   },
   {
     name: "delete",
-    description: "Delete current chat",
+    description: pageConfig.chat.slashCommands.deleteDescription,
     icon: <XIcon className="size-3.5" />,
     action: "delete",
   },
   {
     name: "purge",
-    description: "Delete all chats",
+    description: pageConfig.chat.slashCommands.purgeDescription,
     icon: <BombIcon className="size-3.5" />,
     action: "purge",
   },

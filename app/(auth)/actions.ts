@@ -2,13 +2,22 @@
 
 import { z } from "zod";
 
-import { createUser, getUser } from "@/lib/db/queries";
+import {
+  createUser,
+  getUser,
+  getValidInviteCode,
+  markInviteCodeUsed,
+} from "@/lib/db/queries";
 
 import { signIn } from "./auth";
 
 const authFormSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
+});
+
+const registerFormSchema = authFormSchema.extend({
+  inviteCode: z.string().trim().min(1),
 });
 
 export type LoginActionState = {
@@ -48,6 +57,7 @@ export type RegisterActionState = {
     | "success"
     | "failed"
     | "user_exists"
+    | "invalid_invite_code"
     | "invalid_data";
 };
 
@@ -56,10 +66,20 @@ export const register = async (
   formData: FormData
 ): Promise<RegisterActionState> => {
   try {
-    const validatedData = authFormSchema.parse({
+    const validatedData = registerFormSchema.parse({
       email: formData.get("email"),
       password: formData.get("password"),
+      inviteCode: formData.get("inviteCode"),
     });
+
+    const [invite] = await getValidInviteCode({
+      email: validatedData.email,
+      code: validatedData.inviteCode,
+    });
+
+    if (!invite) {
+      return { status: "invalid_invite_code" };
+    }
 
     const [user] = await getUser(validatedData.email);
 
@@ -67,6 +87,8 @@ export const register = async (
       return { status: "user_exists" } as RegisterActionState;
     }
     await createUser(validatedData.email, validatedData.password);
+    await markInviteCodeUsed({ id: invite.id });
+
     await signIn("credentials", {
       email: validatedData.email,
       password: validatedData.password,

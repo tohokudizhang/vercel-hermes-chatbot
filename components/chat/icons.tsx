@@ -1,3 +1,8 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { pageConfig } from "@/lib/page-config";
+
 export const BotIcon = () => {
   return (
     <svg
@@ -34,6 +39,61 @@ export const UserIcon = () => {
         fillRule="evenodd"
       />
     </svg>
+  );
+};
+
+
+const MonogramLogo = ({ size }: { size: number }) => (
+  <svg
+    aria-label={pageConfig.brand.logo.ariaLabel}
+    height={size}
+    role="img"
+    viewBox="0 0 24 24"
+    width={size}
+  >
+    <rect fill="currentColor" height="24" rx="6" width="24" />
+    <text
+      dominantBaseline="central"
+      fill="white"
+      fontFamily="Arial, sans-serif"
+      fontSize="15"
+      fontWeight="700"
+      textAnchor="middle"
+      x="12"
+      y="12"
+    >
+      {pageConfig.brand.logo.monogram}
+    </text>
+  </svg>
+);
+
+export const AssistantLogo = ({ size = 16 }: { size?: number }) => {
+  const [mounted, setMounted] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!(mounted && pageConfig.brand.logo.imageSrc) || imageFailed) {
+    return <MonogramLogo size={size} />;
+  }
+
+  return (
+    <img
+      alt={pageConfig.brand.logo.imageAlt}
+      height={size}
+      onError={() => setImageFailed(true)}
+      src={pageConfig.brand.logo.imageSrc}
+      style={{
+        borderRadius: Math.max(2, Math.round(size / 4)),
+        display: "block",
+        height: size,
+        objectFit: "cover",
+        width: size,
+      }}
+      width={size}
+    />
   );
 };
 

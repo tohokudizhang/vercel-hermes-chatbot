@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import Script from "next/script";
 import { Suspense } from "react";
 import { Toaster } from "sonner";
@@ -27,6 +28,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
 async function SidebarShell({ children }: { children: React.ReactNode }) {
   const [session, cookieStore] = await Promise.all([auth(), cookies()]);
+
+  if (session?.user?.type !== "regular") {
+    redirect("/login");
+  }
+
   const isCollapsed = cookieStore.get("sidebar_state")?.value !== "true";
 
   return (

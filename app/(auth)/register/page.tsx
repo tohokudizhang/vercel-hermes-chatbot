@@ -7,6 +7,7 @@ import { useActionState, useEffect, useState } from "react";
 import { AuthForm } from "@/components/chat/auth-form";
 import { SubmitButton } from "@/components/chat/submit-button";
 import { toast } from "@/components/chat/toast";
+import { pageConfig } from "@/lib/page-config";
 import { type RegisterActionState, register } from "../actions";
 
 export default function Page() {
@@ -24,16 +25,18 @@ export default function Page() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: router and updateSession are stable refs
   useEffect(() => {
     if (state.status === "user_exists") {
-      toast({ type: "error", description: "Account already exists!" });
+      toast({ type: "error", description: pageConfig.auth.notifications.accountExists });
     } else if (state.status === "failed") {
-      toast({ type: "error", description: "Failed to create account!" });
+      toast({ type: "error", description: pageConfig.auth.notifications.createAccountFailed });
+    } else if (state.status === "invalid_invite_code") {
+      toast({ type: "error", description: pageConfig.auth.notifications.invalidInviteCode });
     } else if (state.status === "invalid_data") {
       toast({
         type: "error",
-        description: "Failed validating your submission!",
+        description: pageConfig.auth.notifications.validationFailed,
       });
     } else if (state.status === "success") {
-      toast({ type: "success", description: "Account created!" });
+      toast({ type: "success", description: pageConfig.auth.notifications.accountCreated });
       setIsSuccessful(true);
       updateSession();
       router.refresh();
@@ -47,17 +50,23 @@ export default function Page() {
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-tight">Create account</h1>
-      <p className="text-sm text-muted-foreground">Get started for free</p>
-      <AuthForm action={handleSubmit} defaultEmail={email}>
-        <SubmitButton isSuccessful={isSuccessful}>Sign up</SubmitButton>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        {pageConfig.auth.register.title}
+      </h1>
+      <p className="text-sm text-muted-foreground">
+        {pageConfig.auth.register.subtitle}
+      </p>
+      <AuthForm action={handleSubmit} defaultEmail={email} showInviteCode>
+        <SubmitButton isSuccessful={isSuccessful}>
+          {pageConfig.auth.register.submitLabel}
+        </SubmitButton>
         <p className="text-center text-[13px] text-muted-foreground">
-          {"Have an account? "}
+          {pageConfig.auth.register.switchPrompt}
           <Link
             className="text-foreground underline-offset-4 hover:underline"
             href="/login"
           >
-            Sign in
+            {pageConfig.auth.register.switchLabel}
           </Link>
         </p>
       </AuthForm>
